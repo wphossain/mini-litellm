@@ -1,12 +1,28 @@
 {
+  "version": 2,
   "builds": [
+    {
+      "src": "dashboard/package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "dist" }
+    },
     {
       "src": "api/index.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "api/index.py" },
-    { "src": "/(.*)", "dest": "api/index.py" }
+    { "src": "/v1/(.*)", "dest": "api/index.py" },
+    { "src": "/health(.*)", "dest": "api/index.py" },
+    { "src": "/admin/providers(.*)", "dest": "api/index.py" },
+    { "src": "/admin/keys(.*)", "dest": "api/index.py" },
+    { "src": "/admin/logs(.*)", "dest": "api/index.py" },
+    { "src": "/admin/stats(.*)", "dest": "api/index.py" },
+    { "src": "/admin/health(.*)", "dest": "api/index.py" },
+    { "src": "/admin/me", "dest": "api/index.py" },
+    { "src": "/docs", "dest": "api/index.py" },
+    { "src": "/openapi.json", "dest": "api/index.py" },
+    { "src": "/assets/(.*)", "dest": "/assets/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
