@@ -19,6 +19,14 @@ export async function apiPost(path: string, body?: any) {
   return r.json()
 }
 
+export async function apiPut(path: string, body?: any) {
+  const r = await fetch(BASE + path, {
+    method: 'PUT', headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined
+  })
+  if (!r.ok) { const e = await r.text(); throw new Error(e) }
+  return r.json()
+}
+
 export async function apiDelete(path: string) {
   const r = await fetch(BASE + path, { method: 'DELETE', headers: getAuthHeaders() })
   if (!r.ok) throw new Error(await r.text())
