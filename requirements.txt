@@ -4,7 +4,7 @@ uvicorn[standard]>=0.30.0,<0.35.0
 pydantic>=2.7.0,<3.0.0
 pydantic-settings>=2.3.0,<3.0.0
 
-# LLM Gateway SDK (SDK mode only, lightweight)
+# LLM Gateway SDK (SDK mode only, NOT the proxy)
 litellm>=1.40.0,<2.0.0
 
 # Configuration & Utilities
@@ -16,8 +16,12 @@ aiofiles>=23.2.1,<25.0.0
 # Security & CORS
 python-multipart>=0.0.9,<1.0.0
 
-# Data & Logging
+# Token counting & Cost estimation
 tiktoken>=0.7.0,<1.0.0
+
+# Vercel serverless (optional, for production deployment)
+# These help with the serverless environment
+# On Vercel, @vercel/python handles ASGI natively
 
 # Testing
 pytest>=8.2.0,<9.0.0
