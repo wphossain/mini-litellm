@@ -19,9 +19,8 @@ python-multipart>=0.0.9,<1.0.0
 # Token counting & Cost estimation
 tiktoken>=0.7.0,<1.0.0
 
-# Vercel serverless (optional, for production deployment)
-# These help with the serverless environment
-# On Vercel, @vercel/python handles ASGI natively
+# Vercel serverless adapter (ASGI -> WSGI)
+mangum>=0.17.0,<1.0.0
 
 # Testing
 pytest>=8.2.0,<9.0.0
