@@ -1,0 +1,301 @@
+# =============================================================================
+# Mini LiteLLM — AI Gateway Configuration
+# =============================================================================
+# Optimized for <150MB idle RAM, Open-WebUI / LobeHub / LibreChat compatible.
+# Use environment variables for secrets (see .env.example).
+# =============================================================================
+
+gateway:
+  name: "Mini LiteLLM Gateway"
+  version: "1.0.0"
+  host: "0.0.0.0"
+  port: 4000
+  log_level: "INFO"
+  log_to_file: false
+  log_retention_days: 7
+  max_request_size: 10485760
+  request_timeout: 300
+  streaming_enabled: true
+
+auth:
+  master_key: "${GATEWAY_MASTER_KEY}"
+  admin_key: "${GATEWAY_ADMIN_KEY:-sk-admin-master}"
+  readonly_key: "${GATEWAY_READONLY_KEY:-sk-readonly}"
+  disabled: false
+
+rate_limiting:
+  enabled: true
+  strategy: "token_bucket"
+  requests_per_minute: 60
+  burst_size: 20
+
+cors:
+  enabled: true
+  allow_origins:
+    - "*"
+  allow_methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+    - "OPTIONS"
+  allow_headers:
+    - "*"
+  allow_credentials: true
+
+model_aliases:
+  gpt-5: "openai/gpt-5"
+  gpt-4o: "openai/gpt-4o"
+  gpt-4o-mini: "openai/gpt-4o-mini"
+  claude: "anthropic/claude-sonnet-4-20250514"
+  claude-sonnet: "anthropic/claude-sonnet-4-20250514"
+  claude-haiku: "anthropic/claude-haiku-3-5-20241022"
+  claude-opus: "anthropic/claude-opus-4-20250514"
+  gemini: "gemini/gemini-2.5-pro-exp-03-25"
+  gemini-flash: "gemini/gemini-2.0-flash-exp"
+  deepseek: "deepseek/deepseek-chat"
+  deepseek-coder: "deepseek/deepseek-coder"
+  codestral: "mistral/codestral-latest"
+  llama: "groq/llama-3.3-70b-versatile"
+  mixtral: "mistral/mistral-large-latest"
+  qwen: "openrouter/qwen/qwen-2.5-72b-instruct"
+  o3-mini: "openai/o3-mini"
+  o4-mini: "openai/o4-mini"
+
+model_routing:
+  preferred_provider: ""
+  prefer_lowest_cost: false
+  prefer_lowest_latency: false
+  max_retries_per_request: 3
+
+providers:
+  - name: "openai"
+    type: "openai"
+    enabled: true
+    priority: 1
+    api_base: "https://api.openai.com/v1"
+    api_keys:
+      - "${OPENAI_API_KEY}"
+    models: []
+    rate_limit:
+      requests_per_minute: 500
+      tokens_per_minute: 200000
+    cost_weight: 0
+    latency_weight: 0
+    max_retries: 3
+    timeout: 120
+
+  - name: "anthropic"
+    type: "anthropic"
+    enabled: true
+    priority: 2
+    api_base: "https://api.anthropic.com"
+    api_keys:
+      - "${ANTHROPIC_API_KEY}"
+    models: []
+    rate_limit:
+      requests_per_minute: 200
+      tokens_per_minute: 100000
+    cost_weight: 1
+    latency_weight: 1
+    max_retries: 3
+    timeout: 120
+
+  - name: "gemini"
+    type: "gemini"
+    enabled: true
+    priority: 3
+    api_base: "https://generativelanguage.googleapis.com"
+    api_keys:
+      - "${GEMINI_API_KEY}"
+    models: []
+    rate_limit:
+      requests_per_minute: 100
+      tokens_per_minute: 50000
+    cost_weight: 0
+    latency_weight: 2
+    max_retries: 2
+    timeout: 120
+
+  - name: "openrouter"
+    type: "openrouter"
+    enabled: true
+    priority: 4
+    api_base: "https://openrouter.ai/api/v1"
+    api_keys:
+      - "${OPENROUTER_API_KEY}"
+    models: []
+    rate_limit:
+      requests_per_minute: 100
+      tokens_per_minute: 100000
+    cost_weight: 1
+    latency_weight: 1
+    max_retries: 2
+    timeout: 180
+
+  - name: "mistral"
+    type: "mistral"
+    enabled: true
+    priority: 5
+    api_base: "https://api.mistral.ai/v1"
+    api_keys:
+      - "${MISTRAL_API_KEY}"
+    models: []
+    rate_limit:
+      requests_per_minute: 100
+      tokens_per_minute: 100000
+    cost_weight: 0
+    latency_weight: 1
+    max_retries: 2
+    timeout: 120
+
+  - name: "groq"
+    type: "groq"
+    enabled: true
+    priority: 6
+    api_base: "https://api.groq.com/openai/v1"
+    api_keys:
+      - "${GROQ_API_KEY}"
+    models: []
+    rate_limit:
+      requests_per_minute: 30
+      tokens_per_minute: 15000
+    cost_weight: -1
+    latency_weight: -1
+    max_retries: 3
+    timeout: 60
+
+  - name: "deepseek"
+    type: "deepseek"
+    enabled: true
+    priority: 7
+    api_base: "https://api.deepseek.com"
+    api_keys:
+      - "${DEEPSEEK_API_KEY}"
+    models: []
+    rate_limit:
+      requests_per_minute: 100
+      tokens_per_minute: 100000
+    cost_weight: -1
+    latency_weight: 0
+    max_retries: 3
+    timeout: 120
+
+  - name: "ollama"
+    type: "ollama"
+    enabled: true
+    priority: 10
+    api_base: "http://host.docker.internal:11434"
+    api_keys: []
+    models:
+      - "llama3.2"
+      - "mistral"
+      - "qwen2.5"
+    rate_limit:
+      requests_per_minute: 1000
+      tokens_per_minute: 500000
+    cost_weight: -2
+    latency_weight: 0
+    max_retries: 1
+    timeout: 300
+
+  - name: "nvidia"
+    type: "openai_compatible"
+    enabled: false
+    priority: 8
+    api_base: "https://integrate.api.nvidia.com/v1"
+    api_keys:
+      - "${NVIDIA_API_KEY}"
+    models: []
+    rate_limit:
+      requests_per_minute: 50
+      tokens_per_minute: 50000
+    cost_weight: 1
+    latency_weight: 1
+    max_retries: 2
+    timeout: 180
+
+  - name: "azure_openai"
+    type: "azure"
+    enabled: false
+    priority: 9
+    api_base: "${AZURE_API_BASE}"
+    api_keys:
+      - "${AZURE_API_KEY}"
+    api_version: "2024-10-01-preview"
+    models: []
+    rate_limit:
+      requests_per_minute: 100
+      tokens_per_minute: 100000
+    cost_weight: 1
+    latency_weight: 0
+    max_retries: 3
+    timeout: 120
+
+  - name: "lm_studio"
+    type: "openai_compatible"
+    enabled: false
+    priority: 11
+    api_base: "http://host.docker.internal:1234/v1"
+    api_keys: []
+    models: []
+    rate_limit:
+      requests_per_minute: 1000
+      tokens_per_minute: 500000
+    cost_weight: -2
+    latency_weight: 0
+    max_retries: 1
+    timeout: 300
+
+  - name: "vllm"
+    type: "openai_compatible"
+    enabled: false
+    priority: 12
+    api_base: "http://vllm-server:8000/v1"
+    api_keys: []
+    models: []
+    rate_limit:
+      requests_per_minute: 1000
+      tokens_per_minute: 500000
+    cost_weight: -2
+    latency_weight: 0
+    max_retries: 1
+    timeout: 300
+
+fallback:
+  enabled: true
+  chain:
+    - "openai"
+    - "anthropic"
+    - "openrouter"
+    - "gemini"
+
+health_check:
+  enabled: true
+  interval_seconds: 60
+  timeout_seconds: 10
+  consecutive_failures: 3
+  recovery_attempts: 5
+  endpoints:
+    openai: "https://api.openai.com/v1/models"
+    anthropic: "https://api.anthropic.com/v1/messages"
+    gemini: "https://generativelanguage.googleapis.com/v1/models"
+    openrouter: "https://openrouter.ai/api/v1/models"
+    mistral: "https://api.mistral.ai/v1/models"
+    groq: "https://api.groq.com/openai/v1/models"
+    deepseek: "https://api.deepseek.com/models"
+
+rotation:
+  strategy: "round_robin"
+  failover_on_error: true
+  reset_on_success: true
+
+cache:
+  model_list_ttl: 300
+  response_cache: false
+  response_cache_ttl: 60
+
+dashboard:
+  enabled: false
+  path: "./dashboard/dist"
+  static_url: "/admin/ui"
