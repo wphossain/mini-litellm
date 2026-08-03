@@ -2,12 +2,13 @@
 Mini LiteLLM Gateway — FastAPI Entrypoint.
 
 Lightweight AI Gateway using LiteLLM SDK (NOT Proxy).
-Optimized for <150MB idle RAM on Northflank Free / Render Free / Railway / VPS.
+Optimized for <150MB idle RAM on Northflank Free / Render Free / Railway / VPS / Vercel.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -20,46 +21,53 @@ from app.api.embeddings import router as embeddings_router
 from app.api.health import router as health_router
 from app.api.images import router as images_router
 from app.api.models import router as models_router
-from app.config.settings import load_config, get_config
+from app.config.settings import get_config, load_config
 from app.core.health_checker import health_checker
 
 # ---- Logging ----
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=os.environ.get("GATEWAY_LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("gateway")
 
+# ---- Lazy config — load on first request, not on import (needed for Vercel) ----
+
+_config_loaded = False
+
+
+def _ensure_config() -> None:
+    global _config_loaded
+    if not _config_loaded:
+        try:
+            load_config()
+            _config_loaded = True
+        except Exception as e:
+            logger.warning("Config load deferred: %s", e)
+
+
 # ---- Lifecycle ----
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown lifecycle."""
-    # Startup
-    logger.info("═══════════════════════════════════════")
-    logger.info("  Mini LiteLLM Gateway — Starting...")
-    logger.info("═══════════════════════════════════════")
+    _ensure_config()
+    config = get_config()
 
-    try:
-        config = load_config()
-        logger.info("Version: %s", config.gateway.version)
-        logger.info("Host: %s:%d", config.gateway.host, config.gateway.port)
-        logger.info("Providers: %d (%d enabled)", len(config.providers), sum(1 for p in config.providers if p.enabled))
-        logger.info("Aliases: %d", len(config.model_aliases))
-        logger.info("Auth: %s", "DISABLED" if config.auth.disabled else "ENABLED")
-    except Exception as e:
-        logger.error("Failed to load configuration: %s", e)
-        raise
+    logger.info("=" * 48)
+    logger.info("  Mini LiteLLM Gateway v%s", config.gateway.version)
+    logger.info("  Providers: %d enabled / %d total",
+                sum(1 for p in config.providers if p.enabled),
+                len(config.providers))
+    logger.info("  Auth: %s", "DISABLED" if config.auth.disabled else "ENABLED")
+    logger.info("=" * 48)
 
+    _setup_cors(app)
     await health_checker.start()
-    logger.info("Gateway is ready to accept requests")
 
     yield
 
-    # Shutdown
-    logger.info("Shutting down...")
     await health_checker.stop()
     logger.info("Gateway stopped")
 
@@ -77,13 +85,12 @@ app = FastAPI(
 )
 
 
-# ---- CORS Middleware ----
+# ---- CORS ----
 
 def _setup_cors(app: FastAPI) -> None:
     config = get_config()
     if not config.cors.enabled:
         return
-
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.cors.allow_origins,
@@ -91,52 +98,39 @@ def _setup_cors(app: FastAPI) -> None:
         allow_methods=config.cors.allow_methods,
         allow_headers=config.cors.allow_headers,
     )
-    logger.info("CORS enabled for %d origins", len(config.cors.allow_origins))
+    logger.info("CORS enabled")
 
 
 # ---- Register Routes ----
 
-# Health first — no auth required
 app.include_router(health_router)
-
-# OpenAI-compatible endpoints
 app.include_router(chat_router)
 app.include_router(models_router)
 app.include_router(embeddings_router)
 app.include_router(images_router)
 app.include_router(audio_router)
-
-# Admin API (auth enforced internally)
 app.include_router(admin_router)
 
 logger.info("All routes registered")
 
 
-# ---- Setup CORS after config is loaded ----
-try:
-    _setup_cors(app)
-except Exception:
-    logger.warning("CORS setup deferred — config not yet loaded")
-
-
-# ---- Convenience — Uvicorn runner ----
+# ---- For local dev: uvicorn runner ----
 if __name__ == "__main__":
     import uvicorn
 
     try:
-        config = load_config()
+        _ensure_config()
+        config = get_config()
         host = config.gateway.host
-        port = config.gateway.port
-        log_level = config.gateway.log_level.lower()
+        port = int(os.environ.get("PORT", config.gateway.port))
     except Exception:
         host = "0.0.0.0"
-        port = 4000
-        log_level = "info"
+        port = int(os.environ.get("PORT", 4000))
 
     uvicorn.run(
         "main:app",
         host=host,
         port=port,
-        log_level=log_level,
+        log_level="info",
         access_log=True,
     )
