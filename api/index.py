@@ -1,40 +1,32 @@
 """
-Vercel serverless adapter.
+Vercel serverless adapter for Mini LiteLLM Gateway.
 
-Vercel calls this module directly instead of running Uvicorn.
+Vercel calls this module directly and expects a top-level "app" variable
+that is a FastAPI/ASGI application.
+
+This file handles the full setup so Vercel can find everything.
 """
 
 import sys
 import os
-import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("vercel")
+# ---- Path Setup: ensure all modules are importable ----
 
-# Point sys.path to the project root (parent of api/ directory)
-_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
+# The api/ directory is one level below project root
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_this_dir)
 
-# Also ensure the parent works for relative imports
-if os.getcwd() not in sys.path:
-    sys.path.insert(0, os.getcwd())
+# Add both to sys.path so 'from app import ...' and 'from main import app' work
+for p in [_project_root, _this_dir]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
-logger.info("Vercel adapter starting...")
-logger.info("sys.path: %s", sys.path)
-logger.info("CWD: %s", os.getcwd())
-logger.info("Root: %s", _project_root)
+# Change working directory to project root so config.yaml can be found
+os.chdir(_project_root)
 
-# List files in root for debugging
-for f in os.listdir(_project_root):
-    logger.info("  root file: %s", f)
+# ---- Import the actual FastAPI application ----
+# Vercel expects 'app' at module level as the ASGI handler
 
-# Import the FastAPI app from main
-try:
-    from main import app
-    logger.info("FastAPI app loaded successfully")
-except Exception as e:
-    logger.error("Failed to import main: %s", e)
-    import traceback
-    logger.error(traceback.format_exc())
-    raise
+from main import app
+
+# The 'app' variable is now available at module level for Vercel
