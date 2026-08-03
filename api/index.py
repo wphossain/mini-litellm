@@ -1,8 +1,8 @@
 """
-Vercel serverless adapter.
+Vercel serverless adapter using Mangum.
 
-Vercel calls this module directly instead of running Uvicorn.
-The 'app' export is picked up by vercel.json -> @vercel/python.
+FastAPI is ASGI-based, but Vercel Python Functions expect WSGI.
+Mangum wraps the ASGI app into a Vercel-compatible handler.
 """
 
 import sys
@@ -16,4 +16,7 @@ if _project_root not in sys.path:
 # Import the FastAPI app from main
 from main import app
 
-# Vercel expects 'app' as the ASGI handler
+from mangum import Mangum
+
+# Create Vercel-compatible handler
+handler = Mangum(app, lifespan="off")
