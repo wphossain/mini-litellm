@@ -8,11 +8,12 @@ The 'app' export is picked up by vercel.json -> @vercel/python.
 import sys
 import os
 
-# Ensure the project root is in the path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Point sys.path to the project root (parent of api/)
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 # Import the FastAPI app from main
 from main import app
 
-# Vercel expects 'app' as the WSGI/ASGI handler
-# FastAPI/Starlette ASGI apps work natively with @vercel/python
+# Vercel expects 'app' as the ASGI handler
