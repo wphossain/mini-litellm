@@ -74,13 +74,12 @@ class AdminProviderRequest(BaseModel):
     latency_weight: int = 0
     max_retries: int = 3
     timeout: int = 120
-    # Rate limit
     requests_per_minute: int = 60
     tokens_per_minute: int = 100000
 
 
 class AdminKeyRequest(BaseModel):
-    """Request body for adding an API key to a provider."""
+    """Request body for adding/removing an API key."""
     provider_name: str
     api_key: str
 
@@ -89,8 +88,3 @@ class AdminToggleRequest(BaseModel):
     """Request body for enabling/disabling a provider."""
     provider_name: str
     enabled: bool
-
-
-class ErrorResponse(BaseModel):
-    error: str
-    details: str | None = None
