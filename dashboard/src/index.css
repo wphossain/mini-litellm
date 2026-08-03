@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { @apply antialiased; }
+
+.sidebar-link { @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors; }
+.sidebar-link-active { @apply bg-blue-600 text-white; }
+.sidebar-link-inactive { @apply text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800; }
+
+.card { @apply bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6; }
+
+.btn { @apply px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50; }
+.btn-primary { @apply bg-blue-600 text-white hover:bg-blue-700; }
+.btn-danger { @apply bg-red-600 text-white hover:bg-red-700; }
+.btn-outline { @apply border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700; }
+
+.badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium; }
+.badge-green { @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300; }
+.badge-red { @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300; }
+.badge-yellow { @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300; }
