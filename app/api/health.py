@@ -14,15 +14,6 @@ router = APIRouter()
 _start_time = time.time()
 
 
-@router.get("/", summary="Root health check", tags=["Health"])
-async def root_health():
-    return {
-        "status": "ok",
-        "service": "Mini LiteLLM Gateway",
-        "version": get_config().gateway.version,
-    }
-
-
 @router.get("/health", summary="Gateway health status", tags=["Health"])
 async def health():
     config = get_config()
