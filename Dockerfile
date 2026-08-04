@@ -1,35 +1,49 @@
 # =============================================================================
-# Mini LiteLLM Gateway — Dockerfile
-# Multi-stage build: builder → runtime (Alpine for minimal footprint)
+# Mini LiteLLM Gateway — Multi-stage Dockerfile
+# Stage 1: Build React Dashboard (Node.js)
+# Stage 2: Build Python dependencies (Python/Alpine)
+# Stage 3: Runtime image (Python/Alpine) containing Gateway + Static Dashboard
 # =============================================================================
 
-FROM python:3.12-alpine AS builder
+# ---- Stage 1: Build Dashboard ----
+FROM node:20-alpine AS dashboard-builder
 
-# Build dependencies
+WORKDIR /dashboard
+
+COPY dashboard/package*.json ./
+RUN npm ci --silent || npm install
+
+COPY dashboard/ ./
+RUN npm run build
+
+# ---- Stage 2: Build Python Virtual Environment ----
+FROM python:3.12-alpine AS python-builder
+
 RUN apk add --no-cache gcc musl-dev libffi-dev openssl-dev
 
 WORKDIR /app
 
-# Install dependencies into a virtual env
 COPY requirements.txt .
 RUN python -m venv /opt/venv && \
     . /opt/venv/bin/activate && \
     pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# ---- Runtime Stage ----
+# ---- Stage 3: Runtime Image ----
 FROM python:3.12-alpine
 
-# Runtime libs only
 RUN apk add --no-cache libstdc++ ca-certificates
 
 WORKDIR /app
 
-# Copy virtual env from builder
-COPY --from=builder /opt/venv /opt/venv
+# Copy Python virtual env
+COPY --from=python-builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy application code
+# Copy dashboard dist from Stage 1 into /app/dashboard/dist
+COPY --from=dashboard-builder /dashboard/dist /app/dashboard/dist
+
+# Copy Gateway code
 COPY main.py .
 COPY config.yaml .
 COPY app/ ./app/
