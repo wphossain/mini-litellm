@@ -15,7 +15,6 @@ import Settings from './pages/Settings'
 const ThemeCtx = createContext<{ dark: boolean; toggle: () => void }>({ dark: false, toggle: () => {} })
 export const useTheme = () => useContext(ThemeCtx)
 
-// Toast
 interface Toast { id: number; message: string; type: 'success' | 'error' | 'info' }
 let toastId = 0
 
@@ -50,7 +49,6 @@ function ToastContainer() {
   )
 }
 
-// Login Component
 function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const [tokenKey, setTokenKey] = useState('')
   const [error, setError] = useState('')
@@ -102,7 +100,6 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   )
 }
 
-// Navigation Items
 const NAV_ITEMS = [
   { to: '/', label: 'Overview', icon: '📊' },
   { to: '/providers', label: 'Providers', icon: '🔌' },
@@ -227,7 +224,7 @@ export default function App() {
 
   return (
     <ThemeCtx.Provider value={{ dark, toggle: () => setDark(!dark) }}>
-      <BrowserRouter basename="/admin/ui">
+      <BrowserRouter>
         <ToastContainer />
         <AppShell />
       </BrowserRouter>
