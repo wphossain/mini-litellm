@@ -1,54 +1,46 @@
 # =============================================================================
-# Mini LiteLLM Gateway — Multi-stage Dockerfile
-# Stage 1: Build React Dashboard (Node.js)
-# Stage 2: Build Python dependencies (Python/Alpine)
-# Stage 3: Runtime image (Python/Alpine) containing Gateway + Static Dashboard
+# Mini LiteLLM Gateway — Production Dockerfile
+# Stage 1: Build React Dashboard
+# Stage 2: Runtime Image (Python 3.12 Alpine)
 # =============================================================================
 
 # ---- Stage 1: Build Dashboard ----
 FROM node:20-alpine AS dashboard-builder
 
-WORKDIR /dashboard
+WORKDIR /dashboard-src
 
+# Copy package files and install
 COPY dashboard/package*.json ./
-RUN npm ci --silent || npm install
+RUN npm install
 
+# Copy source and build
 COPY dashboard/ ./
-RUN npm run build
+RUN npm run build && ls -la /dashboard-src/dist
 
-# ---- Stage 2: Build Python Virtual Environment ----
-FROM python:3.12-alpine AS python-builder
-
-RUN apk add --no-cache gcc musl-dev libffi-dev openssl-dev
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN python -m venv /opt/venv && \
-    . /opt/venv/bin/activate && \
-    pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
-# ---- Stage 3: Runtime Image ----
+# ---- Stage 2: Python Runtime ----
 FROM python:3.12-alpine
 
-RUN apk add --no-cache libstdc++ ca-certificates
-
 WORKDIR /app
 
-# Copy Python virtual env
-COPY --from=python-builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+# Install build deps for python, install requirements, then cleanup
+COPY requirements.txt .
+RUN apk add --no-cache gcc musl-dev libffi-dev openssl-dev && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    apk del gcc musl-dev libffi-dev openssl-dev
 
-# Copy dashboard dist from Stage 1 into /app/dashboard/dist
-COPY --from=dashboard-builder /dashboard/dist /app/dashboard/dist
+# Copy compiled static dashboard files from Stage 1 into /app/dashboard/dist
+COPY --from=dashboard-builder /dashboard-src/dist /app/dashboard/dist
 
-# Copy Gateway code
+# Verify the build directory was copied properly
+RUN ls -la /app/dashboard/dist
+
+# Copy Gateway python source
 COPY main.py .
 COPY config.yaml .
 COPY app/ ./app/
 
-# Create non-root user
+# Non-root user
 RUN addgroup -S gateway && adduser -S gateway -G gateway && \
     mkdir -p /app/logs && chown -R gateway:gateway /app
 
