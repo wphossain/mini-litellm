@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  // Base path — dashboard is mounted at /admin/ui/ on the gateway
-  base: '/admin/ui/',
+  // Relative base path ensures HTML works regardless of route prefix
+  base: './',
   server: {
     port: 3000,
     proxy: {
