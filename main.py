@@ -15,7 +15,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse
 
 from app.api.admin import router as admin_router
 from app.api.audio import router as audio_router
@@ -34,10 +34,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("gateway")
 
-# ---- Config setup ----
+# ---- Config ----
 _config_loaded = False
-
-
 def _ensure_config() -> None:
     global _config_loaded
     if not _config_loaded:
@@ -47,7 +45,6 @@ def _ensure_config() -> None:
         except Exception as e:
             logger.warning("Config load deferred: %s", e)
 
-
 _ensure_config()
 config = get_config()
 
@@ -56,9 +53,6 @@ app = FastAPI(
     title="Mini LiteLLM Gateway",
     description="Lightweight OpenAI-compatible AI Gateway using LiteLLM SDK",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
 )
 
 # ---- CORS ----
@@ -70,29 +64,17 @@ if config.cors.enabled:
         allow_methods=config.cors.allow_methods,
         allow_headers=config.cors.allow_headers,
     )
-    logger.info("CORS enabled")
-
 
 # ---- Lifespan ----
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("=" * 48)
-    logger.info("  Mini LiteLLM Gateway v%s", config.gateway.version)
-    logger.info("  Providers: %d enabled / %d total",
-                sum(1 for p in config.providers if p.enabled),
-                len(config.providers))
-    logger.info("  Auth: %s", "DISABLED" if config.auth.disabled else "ENABLED")
-    logger.info("=" * 48)
-
     await health_checker.start()
     yield
     await health_checker.stop()
-    logger.info("Gateway stopped")
-
 
 app.router.lifespan_context = lifespan
 
-# ---- API Routes ----
+# ---- API Routes (MUST COME BEFORE STATIC FILES) ----
 app.include_router(health_router)
 app.include_router(chat_router)
 app.include_router(models_router)
@@ -101,13 +83,11 @@ app.include_router(images_router)
 app.include_router(audio_router)
 app.include_router(admin_router)
 
-# ---- Dashboard Static Files Mounting ----
-# We use absolute paths derived from the current file location to be bulletproof
+# ---- Dashboard Static Files ----
 _base_dir = Path(__file__).parent.resolve()
 candidates = [
     _base_dir / "dashboard" / "dist",
     Path("/app/dashboard/dist"),
-    _base_dir / "dist",
 ]
 
 dashboard_dist = None
@@ -117,33 +97,33 @@ for c in candidates:
         break
 
 if dashboard_dist:
-    logger.info("Mounting Admin Dashboard from: %s", dashboard_dist)
+    logger.info("Serving Admin Dashboard from: %s", dashboard_dist)
     
-    # Root redirect to UI
-    @app.get("/", include_in_schema=False)
-    async def root_to_ui():
-        return FileResponse(dashboard_dist / "index.html")
+    # Serve the static files (CSS, JS, etc.)
+    # We mount at root / but this must stay AFTER api routes
+    app.mount("/assets", StaticFiles(directory=str(dashboard_dist / "assets")), name="assets")
 
-    # Serve static assets
-    app.mount("/admin/ui", StaticFiles(directory=str(dashboard_dist), html=True), name="dashboard")
-
-    # Catch-all for SPA routing
-    @app.get("/admin/ui/{full_path:path}", include_in_schema=False)
-    async def serve_spa(full_path: str):
-        asset_path = dashboard_dist / full_path
-        if asset_path.exists() and asset_path.is_file():
-            return FileResponse(asset_path)
+    # Serve index.html for root and any other non-API routes (SPA support)
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_dashboard(full_path: str):
+        # If it looks like an API call or internal file, let it fall through
+        if full_path.startswith(("v1/", "admin/", "health", "docs", "redoc", "openapi")):
+            # This shouldn't normally be hit if routes match correctly, but just in case
+            return {"error": "Not Found", "path": full_path}
+        
+        # Check if specific file exists in dist (for icons, robots.txt, etc.)
+        file_path = dashboard_dist / full_path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+            
+        # Fallback to index.html for React Router
         return FileResponse(dashboard_dist / "index.html")
 else:
-    logger.error("Dashboard build NOT FOUND in: %s", [str(c) for c in candidates])
+    logger.error("Dashboard NOT FOUND. Tried: %s", [str(c) for c in candidates])
     @app.get("/", include_in_schema=False)
     async def fallback_root():
-        return {"status": "ok", "message": "API is running but Dashboard is missing"}
-
-logger.info("All routes registered")
+        return {"status": "ok", "message": "Gateway API is live. Dashboard build missing."}
 
 if __name__ == "__main__":
     import uvicorn
-    host = config.gateway.host
-    port = int(os.environ.get("PORT", config.gateway.port))
-    uvicorn.run("main:app", host=host, port=port, log_level="info", access_log=True)
+    uvicorn.run("main:app", host=config.gateway.host, port=int(os.environ.get("PORT", config.gateway.port)), log_level="info")
