@@ -101,14 +101,25 @@ app.include_router(images_router)
 app.include_router(audio_router)
 app.include_router(admin_router)
 
-# ---- Dashboard Static Files Mounting ----
-# Serves React app at /admin/ui and redirects / -> /admin/ui
-dashboard_dist = Path("/app/dashboard/dist")
-if not dashboard_dist.exists():
-    dashboard_dist = Path("./dashboard/dist")
+# ---- Robust Dashboard Static Files Mounting ----
+# Check multiple possible locations for dashboard/dist
+candidates = [
+    Path("/app/dashboard/dist"),
+    Path("./dashboard/dist"),
+    Path("dashboard/dist"),
+    Path(__file__).parent / "dashboard" / "dist",
+    Path(__file__).parent.parent / "dashboard" / "dist"
+]
 
-if dashboard_dist.exists():
-    logger.info("Mounting Admin Dashboard from %s", dashboard_dist)
+dashboard_dist = None
+for c in candidates:
+    resolved = c.resolve()
+    if resolved.exists() and (resolved / "index.html").exists():
+        dashboard_dist = resolved
+        break
+
+if dashboard_dist:
+    logger.info("Mounting Admin Dashboard from: %s", dashboard_dist)
     app.mount("/admin/ui", StaticFiles(directory=str(dashboard_dist), html=True), name="dashboard")
 
     # Serve index.html for SPA routing (React Router)
@@ -124,7 +135,8 @@ if dashboard_dist.exists():
     async def redirect_to_ui():
         return RedirectResponse(url="/admin/ui/")
 else:
-    logger.info("Dashboard build not found at %s — serving API health on root", dashboard_dist)
+    logger.warning("Dashboard build directory not found in candidates! Serving API health on root.")
+    logger.info("Attempted paths: %s", [str(c.resolve()) for c in candidates])
 
 logger.info("All routes registered")
 
