@@ -92,7 +92,7 @@ async def lifespan(app: FastAPI):
 
 app.router.lifespan_context = lifespan
 
-# ---- Routes ----
+# ---- API Routes ----
 app.include_router(health_router)
 app.include_router(chat_router)
 app.include_router(models_router)
@@ -101,46 +101,47 @@ app.include_router(images_router)
 app.include_router(audio_router)
 app.include_router(admin_router)
 
-# ---- Robust Dashboard Static Files Mounting ----
-# Check multiple possible locations for dashboard/dist
+# ---- Dashboard Static Files Mounting ----
+# We use absolute paths derived from the current file location to be bulletproof
+_base_dir = Path(__file__).parent.resolve()
 candidates = [
+    _base_dir / "dashboard" / "dist",
     Path("/app/dashboard/dist"),
-    Path("./dashboard/dist"),
-    Path("dashboard/dist"),
-    Path(__file__).parent / "dashboard" / "dist",
-    Path(__file__).parent.parent / "dashboard" / "dist"
+    _base_dir / "dist",
 ]
 
 dashboard_dist = None
 for c in candidates:
-    resolved = c.resolve()
-    if resolved.exists() and (resolved / "index.html").exists():
-        dashboard_dist = resolved
+    if c.exists() and (c / "index.html").exists():
+        dashboard_dist = c
         break
 
 if dashboard_dist:
     logger.info("Mounting Admin Dashboard from: %s", dashboard_dist)
-    app.mount("/admin/ui", StaticFiles(directory=str(dashboard_dist), html=True), name="dashboard")
-
-    # Serve index.html for SPA routing (React Router)
-    @app.get("/admin/ui/{full_path:path}")
-    async def serve_spa(full_path: str):
-        target = dashboard_dist / full_path
-        if target.exists() and target.is_file():
-            return FileResponse(target)
+    
+    # Root redirect to UI
+    @app.get("/", include_in_schema=False)
+    async def root_to_ui():
         return FileResponse(dashboard_dist / "index.html")
 
-    # Redirect root / to /admin/ui for browser convenience
-    @app.get("/", include_in_schema=False)
-    async def redirect_to_ui():
-        return RedirectResponse(url="/admin/ui/")
+    # Serve static assets
+    app.mount("/admin/ui", StaticFiles(directory=str(dashboard_dist), html=True), name="dashboard")
+
+    # Catch-all for SPA routing
+    @app.get("/admin/ui/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        asset_path = dashboard_dist / full_path
+        if asset_path.exists() and asset_path.is_file():
+            return FileResponse(asset_path)
+        return FileResponse(dashboard_dist / "index.html")
 else:
-    logger.warning("Dashboard build directory not found in candidates! Serving API health on root.")
-    logger.info("Attempted paths: %s", [str(c.resolve()) for c in candidates])
+    logger.error("Dashboard build NOT FOUND in: %s", [str(c) for c in candidates])
+    @app.get("/", include_in_schema=False)
+    async def fallback_root():
+        return {"status": "ok", "message": "API is running but Dashboard is missing"}
 
 logger.info("All routes registered")
 
-# ---- Local dev ----
 if __name__ == "__main__":
     import uvicorn
     host = config.gateway.host
