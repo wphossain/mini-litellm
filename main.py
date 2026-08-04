@@ -1,5 +1,5 @@
 """
-Mini LiteLLM Gateway — FastAPI Entrypoint.
+Mini LiteLLM Gateway — FastAPI Entrypoint with Dashboard Static Mounting.
 
 Lightweight AI Gateway using LiteLLM SDK (NOT Proxy).
 Optimized for <150MB idle RAM.
@@ -10,9 +10,12 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse
 
 from app.api.admin import router as admin_router
 from app.api.audio import router as audio_router
@@ -31,7 +34,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("gateway")
 
-# ---- CORS middleware must be added BEFORE lifespan starts ----
+# ---- Config setup ----
 _config_loaded = False
 
 
@@ -48,7 +51,7 @@ def _ensure_config() -> None:
 _ensure_config()
 config = get_config()
 
-# ---- Create app ----
+# ---- App ----
 app = FastAPI(
     title="Mini LiteLLM Gateway",
     description="Lightweight OpenAI-compatible AI Gateway using LiteLLM SDK",
@@ -58,7 +61,7 @@ app = FastAPI(
     openapi_url="/openapi.json",
 )
 
-# ---- CORS (MUST be before lifespan, before routes) ----
+# ---- CORS ----
 if config.cors.enabled:
     app.add_middleware(
         CORSMiddleware,
@@ -70,7 +73,7 @@ if config.cors.enabled:
     logger.info("CORS enabled")
 
 
-# ---- Lifespan (startup/shutdown) ----
+# ---- Lifespan ----
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("=" * 48)
@@ -87,6 +90,8 @@ async def lifespan(app: FastAPI):
     logger.info("Gateway stopped")
 
 
+app.router.lifespan_context = lifespan
+
 # ---- Routes ----
 app.include_router(health_router)
 app.include_router(chat_router)
@@ -96,8 +101,32 @@ app.include_router(images_router)
 app.include_router(audio_router)
 app.include_router(admin_router)
 
-logger.info("All routes registered")
+# ---- Dashboard Static Files Mounting ----
+# Serves React app at /admin/ui and redirects / -> /admin/ui
+dashboard_dist = Path("/app/dashboard/dist")
+if not dashboard_dist.exists():
+    dashboard_dist = Path("./dashboard/dist")
 
+if dashboard_dist.exists():
+    logger.info("Mounting Admin Dashboard from %s", dashboard_dist)
+    app.mount("/admin/ui", StaticFiles(directory=str(dashboard_dist), html=True), name="dashboard")
+
+    # Serve index.html for SPA routing (React Router)
+    @app.get("/admin/ui/{full_path:path}")
+    async def serve_spa(full_path: str):
+        target = dashboard_dist / full_path
+        if target.exists() and target.is_file():
+            return FileResponse(target)
+        return FileResponse(dashboard_dist / "index.html")
+
+    # Redirect root / to /admin/ui for browser convenience
+    @app.get("/", include_in_schema=False)
+    async def redirect_to_ui():
+        return RedirectResponse(url="/admin/ui/")
+else:
+    logger.info("Dashboard build not found at %s — serving API health on root", dashboard_dist)
+
+logger.info("All routes registered")
 
 # ---- Local dev ----
 if __name__ == "__main__":
